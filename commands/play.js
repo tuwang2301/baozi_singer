@@ -38,15 +38,31 @@ export async function execute(interaction) {
       return interaction.editReply({ content: `❌ ${result.message}` });
     }
 
+    if (result.playlist) {
+      let content = `✅ Đã thêm **${result.count}** bài từ playlist **${result.playlistTitle}** vào hàng đợi.`;
+
+      if (result.truncated) {
+        content += `\n📋 *Playlist có ${result.totalCount} bài, đã lấy ${result.count} bài đầu.*`;
+      }
+
+      if (!result.queued) {
+        content += `\n🎶 Bắt đầu phát: **[${result.firstSong.title}](${result.firstSong.url})**`;
+      } else {
+        content += `\n⏳ Hiện có **${result.waitingCount}** bài đang chờ trước các bài vừa thêm.`;
+      }
+
+      return interaction.editReply({ content });
+    }
+
     if (result.queued) {
       return interaction.editReply({
         content: `✅ Đã thêm vào hàng đợi: **[${result.song.title}](${result.song.url})** (yêu cầu bởi: ${interaction.user.username})`
       });
-    } else {
-      return interaction.editReply({
-        content: `🎶 Bắt đầu phát: **[${result.song.title}](${result.song.url})**`
-      });
     }
+
+    return interaction.editReply({
+      content: `🎶 Bắt đầu phát: **[${result.song.title}](${result.song.url})**`
+    });
   } catch (err) {
     console.error('Play command error:', err);
     return interaction.editReply({

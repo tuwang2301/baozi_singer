@@ -22,7 +22,6 @@ import { fileURLToPath } from 'url';
 import ffmpeg from 'ffmpeg-static';
 import db from '../database.js';
 
-// Setup ffmpeg path in environment so @discordjs/voice can find it
 if (ffmpeg) {
   const ffmpegDir = dirname(ffmpeg);
   if (process.platform === 'win32') {
@@ -36,10 +35,78 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const isWindows = process.platform === 'win32';
 const ytdlpPath = join(__dirname, '..', isWindows ? 'yt-dlp.exe' : 'yt-dlp');
 
-// Map to hold voice playback queues for each guild
+export const PLAYLIST_MAX = 25;
+
 export const queues = new Map();
 
-// Helper to ensure yt-dlp binary is present
+function resetPlaybackSession(queue) {
+  queue.sessionSongs = [];
+  queue.sessionLabel = null;
+}
+
+function savePlaybackSessionIfNeeded(queue) {
+  if (!queue.sessionSongs?.length) return;
+
+  const label = queue.sessionLabel || `Phiên nghe ${new Date().toLocaleDateString('vi-VN')}`;
+  db.savePlaybackSession(label, queue.sessionSongs);
+  resetPlaybackSession(queue);
+}
+
+function isStartingFresh(queue) {
+  return !queue.currentSong && queue.songs.length === 0;
+}
+
+function prepareKnownSong(song, requester) {
+  const videoId = parseVideoId(song.url);
+  return {
+    title: song.title,
+    url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : song.url,
+    thumbnail: getThumbnailFromVideoId(videoId),
+    uploader: song.uploader || 'YouTube',
+    requestedBy: requester,
+    snapshotId: song.snapshotId ?? null,
+    snapshotPosition: song.snapshotPosition ?? null
+  };
+}
+
+export async function enqueueKnownSongs(guildId, voiceChannel, textChannel, songs, requester, sessionLabel = null) {
+  if (!songs.length) {
+    return { success: false, message: 'Không có bài hát nào để phát.' };
+  }
+
+  try {
+    await ensureYtdlp();
+  } catch (err) {
+    console.error('Failed to ensure yt-dlp binary:', err);
+    return { success: false, message: 'Đang tải bộ giải mã yt-dlp, vui lòng thử lại sau vài giây!' };
+  }
+
+  const queue = ensureQueue(guildId, voiceChannel, textChannel);
+  const wasPlaying = !!queue.currentSong;
+
+  if (isStartingFresh(queue)) {
+    resetPlaybackSession(queue);
+    if (sessionLabel) {
+      queue.sessionLabel = sessionLabel;
+    }
+  }
+
+  const prepared = songs.map(song => prepareKnownSong(song, requester));
+  queue.songs.push(...prepared);
+
+  if (!wasPlaying) {
+    playNext(guildId);
+  }
+
+  return {
+    success: true,
+    queued: wasPlaying,
+    count: prepared.length,
+    song: prepared[0],
+    firstSong: prepared[0]
+  };
+}
+
 export function ensureYtdlp() {
   return new Promise((resolve, reject) => {
     if (fs.existsSync(ytdlpPath)) {
@@ -90,7 +157,67 @@ export function ensureYtdlp() {
   });
 }
 
-// Search and extract video metadata using yt-dlp
+function runYtdlp(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(ytdlpPath, args);
+    let stdoutData = '';
+    let stderrData = '';
+
+    child.stdout.on('data', chunk => {
+      stdoutData += chunk.toString();
+    });
+
+    child.stderr.on('data', chunk => {
+      stderrData += chunk.toString();
+    });
+
+    child.on('close', code => {
+      if (code !== 0) {
+        reject(new Error(`yt-dlp failed with code ${code}. Stderr: ${stderrData}`));
+        return;
+      }
+      resolve(stdoutData);
+    });
+  });
+}
+
+export function parseVideoId(url) {
+  if (!url) return null;
+  const match = url.match(/(?:v=|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
+export function getThumbnailFromVideoId(videoId) {
+  return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '';
+}
+
+export function isPlaylistUrl(query) {
+  if (!query.startsWith('http://') && !query.startsWith('https://')) {
+    return false;
+  }
+  try {
+    const url = new URL(query);
+    return url.searchParams.has('list');
+  } catch {
+    return query.includes('list=');
+  }
+}
+
+function buildSongFromEntry(entry, requester, fallbackIndex = 0) {
+  const videoId = entry.id || parseVideoId(entry.url);
+  const cleanUrl = videoId
+    ? `https://www.youtube.com/watch?v=${videoId}`
+    : (entry.url || entry.webpage_url);
+
+  return {
+    title: entry.title || `Bài hát #${fallbackIndex + 1}`,
+    url: cleanUrl,
+    thumbnail: getThumbnailFromVideoId(videoId),
+    uploader: entry.uploader || entry.channel || 'YouTube',
+    requestedBy: requester
+  };
+}
+
 function ytdlpExtractInfo(query) {
   return new Promise((resolve, reject) => {
     const isUrl = query.startsWith('http://') || query.startsWith('https://');
@@ -122,13 +249,13 @@ function ytdlpExtractInfo(query) {
 
       try {
         const metadata = JSON.parse(stdoutData);
-        resolve({
+        const videoId = metadata.id || parseVideoId(metadata.webpage_url || metadata.url);
+        resolve(buildSongFromEntry({
+          id: videoId,
           title: metadata.title,
           url: metadata.webpage_url || metadata.url,
-          duration: metadata.duration || 0,
-          thumbnail: metadata.thumbnail || (metadata.thumbnails && metadata.thumbnails[0]?.url) || '',
-          uploader: metadata.uploader || 'Không rõ'
-        });
+          uploader: metadata.uploader
+        }, null));
       } catch (err) {
         reject(err);
       }
@@ -136,56 +263,67 @@ function ytdlpExtractInfo(query) {
   });
 }
 
-// Convert seconds to format MM:SS or HH:MM:SS
-function formatTime(seconds) {
-  if (isNaN(seconds) || seconds < 0) return '00:00';
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  
-  if (hrs > 0) {
-    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+export async function ytdlpExtractPlaylist(url, max = PLAYLIST_MAX) {
+  const args = [
+    url,
+    '--flat-playlist',
+    '--dump-json',
+    '--playlist-end', String(max + 1),
+    '--extractor-args', 'youtubetab:skip=authcheck',
+    '--js-runtimes', 'node',
+    '--quiet'
+  ];
+
+  const stdoutData = await runYtdlp(args);
+  const lines = stdoutData.split('\n').filter(line => line.trim());
+
+  if (lines.length === 0) {
+    return { playlistTitle: 'Playlist YouTube', entries: [], totalCount: 0, truncated: false };
   }
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+  const parsed = lines.map(line => JSON.parse(line));
+  const truncated = parsed.length > max;
+  const slice = parsed.slice(0, max);
+
+  const first = slice[0];
+  const playlistTitle = first.playlist_title || 'Playlist YouTube';
+  const totalCount = first.playlist_count || parsed.length;
+
+  return {
+    playlistTitle,
+    entries: slice,
+    totalCount,
+    truncated: truncated || totalCount > max
+  };
 }
 
-export function formatProgressBar(elapsed, total) {
-  const size = 15;
-  const progress = total > 0 ? Math.min(Math.max(elapsed / total, 0), 1) : 0;
-  const position = Math.round(size * progress);
-  let bar = '';
-  for (let i = 0; i <= size; i++) {
-    if (i === position) {
-      bar += '●';
-    } else {
-      bar += '▬';
-    }
-  }
-  return `\`${bar} [${formatTime(elapsed)} / ${formatTime(total)}]\``;
-}
-
-export function createPlayerEmbed(song, elapsed = 0) {
+export function createPlayerEmbed(song, paused = false) {
   const isFav = db.isFavorite(song.url);
+  const statusText = paused ? '⏸️ Đang tạm dừng' : '▶️ Đang phát';
+
   const embed = new EmbedBuilder()
     .setColor('#ff75a0')
-    .setTitle(`🎶 LDR Space Player`)
+    .setTitle('🎶 LDR Space Player')
     .setDescription(`**[${song.title}](${song.url})**`)
-    .setThumbnail(song.thumbnail)
     .addFields(
-      { name: '👤 Kênh/Uploader', value: song.uploader || 'Không rõ', inline: true },
+      { name: '👤 Kênh/Uploader', value: song.uploader || 'YouTube', inline: true },
       { name: '✨ Yêu cầu bởi', value: song.requestedBy || 'Không rõ', inline: true },
-      { name: '⭐ Trạng thái', value: isFav ? 'Đã lưu yêu thích' : 'Chưa lưu', inline: true },
-      { name: '⏳ Tiến trình', value: formatProgressBar(elapsed, song.duration) }
+      { name: '⭐ Yêu thích', value: isFav ? 'Đã lưu' : 'Chưa lưu', inline: true },
+      { name: '⏳ Trạng thái', value: statusText, inline: false }
     )
     .setTimestamp()
     .setFooter({ text: 'LDR Space • Music Companion' });
+
+  if (song.thumbnail) {
+    embed.setThumbnail(song.thumbnail);
+  }
 
   return embed;
 }
 
 export function createPlayerButtons(paused = false, url = '') {
   const isFav = db.isFavorite(url);
-  
+
   const pauseResumeButton = new ButtonBuilder()
     .setCustomId('player_pause_resume')
     .setLabel(paused ? 'Tiếp tục' : 'Tạm dừng')
@@ -210,21 +348,15 @@ export function createPlayerButtons(paused = false, url = '') {
     .setEmoji('⭐')
     .setStyle(isFav ? ButtonStyle.Success : ButtonStyle.Secondary);
 
-  const row = new ActionRowBuilder().addComponents(pauseResumeButton, skipButton, stopButton, favButton);
-  return row;
+  return new ActionRowBuilder().addComponents(pauseResumeButton, skipButton, stopButton, favButton);
 }
 
 async function updatePlayerMessage(guildId) {
   const queue = queues.get(guildId);
-  if (!queue || !queue.currentSong || !queue.playerMessage) return;
+  if (!queue?.currentSong || !queue.playerMessage) return;
 
   try {
-    let elapsed = 0;
-    if (queue.audioResource) {
-      elapsed = Math.floor(queue.audioResource.playbackDuration / 1000);
-    }
-    
-    const embed = createPlayerEmbed(queue.currentSong, elapsed);
+    const embed = createPlayerEmbed(queue.currentSong, queue.paused);
     const row = createPlayerButtons(queue.paused, queue.currentSong.url);
 
     await queue.playerMessage.edit({
@@ -236,49 +368,102 @@ async function updatePlayerMessage(guildId) {
   }
 }
 
-function startUpdateInterval(guildId) {
-  const queue = queues.get(guildId);
-  if (!queue) return;
+function ensureQueue(guildId, voiceChannel, textChannel) {
+  let queue = queues.get(guildId);
 
-  if (queue.updateInterval) {
-    clearInterval(queue.updateInterval);
+  if (queue) {
+    queue.textChannel = textChannel;
+    queue.voiceChannel = voiceChannel;
+    return queue;
   }
 
-  queue.updateInterval = setInterval(async () => {
-    const activeQueue = queues.get(guildId);
-    if (!activeQueue || activeQueue.paused || !activeQueue.audioResource) return;
-    await updatePlayerMessage(guildId);
-  }, 10000);
-}
+  const connection = joinVoiceChannel({
+    channelId: voiceChannel.id,
+    guildId,
+    adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+  });
 
-function stopUpdateInterval(guildId) {
-  const queue = queues.get(guildId);
-  if (queue && queue.updateInterval) {
-    clearInterval(queue.updateInterval);
-    queue.updateInterval = null;
-  }
+  connection.on(VoiceConnectionStatus.Disconnected, async () => {
+    try {
+      await Promise.race([
+        entersState(connection, VoiceConnectionStatus.Signalling, 5000),
+        entersState(connection, VoiceConnectionStatus.Connecting, 5000),
+      ]);
+    } catch {
+      stopQueue(guildId);
+    }
+  });
+
+  const player = createAudioPlayer({
+    behaviors: {
+      noSubscriber: NoSubscriberBehavior.Play
+    }
+  });
+  connection.subscribe(player);
+
+  queue = {
+    connection,
+    player,
+    songs: [],
+    textChannel,
+    voiceChannel,
+    currentSong: null,
+    audioResource: null,
+    audioProcess: null,
+    playerMessage: null,
+    paused: false,
+    timeoutId: null,
+    sessionSongs: [],
+    sessionLabel: null,
+    activeSnapshotId: null
+  };
+
+  queues.set(guildId, queue);
+
+  player.on('stateChange', (oldState, newState) => {
+    console.log(`[AudioPlayer] State changed from ${oldState.status} to ${newState.status}`);
+  });
+
+  player.on(AudioPlayerStatus.Idle, () => {
+    console.log('[AudioPlayer] Idle detected, advancing queue.');
+    playNext(guildId);
+  });
+
+  player.on('error', error => {
+    console.error(`Audio player error: ${error.message}`);
+    try {
+      queue.textChannel.send(`⚠️ *Lỗi phát nhạc: ${error.message}*`);
+    } catch (e) {
+      console.error('Failed to send player error message to channel:', e);
+    }
+    playNext(guildId);
+  });
+
+  return queue;
 }
 
 export async function playNext(guildId) {
   const queue = queues.get(guildId);
   if (!queue) return;
 
-  stopUpdateInterval(guildId);
-
-  // Terminate any active yt-dlp stream process
   if (queue.audioProcess) {
     try {
       queue.audioProcess.kill();
-    } catch (e) {
+    } catch {
       // ignore kill errors
     }
     queue.audioProcess = null;
   }
 
   if (queue.songs.length === 0) {
+    if (queue.activeSnapshotId != null) {
+      db.updatePlaylistSnapshotResumeIndex(queue.activeSnapshotId, 0);
+      queue.activeSnapshotId = null;
+    }
+    savePlaybackSessionIfNeeded(queue);
     queue.currentSong = null;
     queue.audioResource = null;
-    
+
     if (queue.playerMessage) {
       try {
         await queue.playerMessage.edit({
@@ -309,10 +494,16 @@ export async function playNext(guildId) {
   queue.paused = false;
 
   try {
+    if (nextSong.snapshotId != null && nextSong.snapshotPosition != null) {
+      db.updatePlaylistSnapshotResumeIndex(nextSong.snapshotId, nextSong.snapshotPosition);
+      queue.activeSnapshotId = nextSong.snapshotId;
+    }
+    if (!queue.sessionSongs) queue.sessionSongs = [];
+    queue.sessionSongs.push({ title: nextSong.title, url: nextSong.url });
+
     db.addMusicHistory(nextSong.title, nextSong.url);
     console.log(`[Player] Bắt đầu phát bài hát: "${nextSong.title}" (${nextSong.url})`);
 
-    // Spawn yt-dlp for streaming
     const args = [
       nextSong.url,
       '-f', 'bestaudio',
@@ -334,22 +525,21 @@ export async function playNext(guildId) {
       console.log(`[yt-dlp] Tiến trình đã dừng với mã code: ${code}`);
     });
 
-    // Pipe child.stdout directly into the audio resource
     const resource = createAudioResource(child.stdout, {
       inputType: StreamType.Arbitrary
     });
-    
+
     queue.audioResource = resource;
     queue.player.play(resource);
-    console.log(`[Player] Luồng dữ liệu âm thanh đã nạp thành công vào AudioPlayer.`);
+    console.log('[Player] Luồng dữ liệu âm thanh đã nạp thành công vào AudioPlayer.');
 
-    const embed = createPlayerEmbed(nextSong, 0);
+    const embed = createPlayerEmbed(nextSong, false);
     const row = createPlayerButtons(false, nextSong.url);
-    
+
     if (queue.playerMessage) {
       try {
         await queue.playerMessage.delete();
-      } catch (e) {
+      } catch {
         // ignore delete failures
       }
     }
@@ -362,9 +552,6 @@ export async function playNext(guildId) {
     } catch (e) {
       console.error('Failed to send player message:', e);
     }
-
-    startUpdateInterval(guildId);
-
   } catch (err) {
     console.error('Playback execution error:', err);
     try {
@@ -377,17 +564,76 @@ export async function playNext(guildId) {
 }
 
 export async function playSong(guildId, voiceChannel, textChannel, query, requester) {
-  let queue = queues.get(guildId);
-
-  // Ensure yt-dlp is available before doing any actions
   try {
     await ensureYtdlp();
   } catch (err) {
     console.error('Failed to ensure yt-dlp binary:', err);
-    return { success: false, message: 'Đang tải bộ giải mã âm thanh yt-dlp, vui lòng thử lại sau vài giây!' };
+    return { success: false, message: 'Đang tải bộ giải mã yt-dlp, vui lòng thử lại sau vài giây!' };
   }
 
-  let songInfo = null;
+  const queue = ensureQueue(guildId, voiceChannel, textChannel);
+  const wasPlaying = !!queue.currentSong;
+  const waitingBefore = queue.songs.length;
+  const startingFresh = isStartingFresh(queue);
+
+  if (isPlaylistUrl(query)) {
+    let playlistData;
+    try {
+      playlistData = await ytdlpExtractPlaylist(query, PLAYLIST_MAX);
+    } catch (err) {
+      console.error('yt-dlp playlist extract error:', err);
+      return { success: false, message: 'Không thể tải playlist. Kiểm tra lại link hoặc thử lại sau.' };
+    }
+
+    if (playlistData.entries.length === 0) {
+      return { success: false, message: 'Playlist không có bài hát nào hoặc playlist bị ẩn.' };
+    }
+
+    if (startingFresh) {
+      resetPlaybackSession(queue);
+      queue.sessionLabel = playlistData.playlistTitle;
+    }
+
+    const songs = playlistData.entries.map((entry, index) => {
+      const song = buildSongFromEntry(entry, requester, index);
+      song.requestedBy = requester;
+      return song;
+    });
+
+    const snapshotId = db.upsertPlaylistSnapshot(
+      playlistData.playlistTitle,
+      query,
+      songs.map(song => ({ title: song.title, url: song.url })),
+      'playlist'
+    );
+
+    if (snapshotId) {
+      songs.forEach((song, index) => {
+        song.snapshotId = snapshotId;
+        song.snapshotPosition = index;
+      });
+    }
+
+    queue.songs.push(...songs);
+
+    if (!wasPlaying) {
+      playNext(guildId);
+    }
+
+    return {
+      success: true,
+      playlist: true,
+      queued: wasPlaying,
+      count: songs.length,
+      playlistTitle: playlistData.playlistTitle,
+      totalCount: playlistData.totalCount,
+      truncated: playlistData.truncated,
+      firstSong: songs[0],
+      waitingCount: wasPlaying ? waitingBefore : 0
+    };
+  }
+
+  let songInfo;
   try {
     songInfo = await ytdlpExtractInfo(query);
     songInfo.requestedBy = requester;
@@ -396,76 +642,41 @@ export async function playSong(guildId, voiceChannel, textChannel, query, reques
     return { success: false, message: 'Đã xảy ra lỗi khi tìm kiếm bài hát.' };
   }
 
-  if (!queue) {
-    const connection = joinVoiceChannel({
-      channelId: voiceChannel.id,
-      guildId: guildId,
-      adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-    });
-
-    connection.on(VoiceConnectionStatus.Disconnected, async () => {
-      try {
-        await Promise.race([
-          entersState(connection, VoiceConnectionStatus.Signalling, 5000),
-          entersState(connection, VoiceConnectionStatus.Connecting, 5000),
-        ]);
-      } catch (error) {
-        stopQueue(guildId);
-      }
-    });
-
-    const player = createAudioPlayer({
-      behaviors: {
-        noSubscriber: NoSubscriberBehavior.Play
-      }
-    });
-    connection.subscribe(player);
-
-    queue = {
-      connection,
-      player,
-      songs: [],
-      textChannel,
-      voiceChannel,
-      currentSong: null,
-      audioResource: null,
-      audioProcess: null,
-      playerMessage: null,
-      paused: false,
-      timeoutId: null,
-      updateInterval: null
-    };
-
-    queues.set(guildId, queue);
-
-    player.on('stateChange', (oldState, newState) => {
-      console.log(`[AudioPlayer] State changed from ${oldState.status} to ${newState.status}`);
-    });
-
-    player.on(AudioPlayerStatus.Idle, () => {
-      console.log('[AudioPlayer] Idle detected, advancing queue.');
-      playNext(guildId);
-    });
-
-    player.on('error', error => {
-      console.error(`Audio player error: ${error.message}`);
-      try {
-        queue.textChannel.send(`⚠️ *Lỗi phát nhạc: ${error.message}*`);
-      } catch (e) {
-        console.error('Failed to send player error message to channel:', e);
-      }
-      playNext(guildId);
-    });
+  if (startingFresh) {
+    resetPlaybackSession(queue);
   }
 
-  if (queue.currentSong) {
-    queue.songs.push(songInfo);
-    return { success: true, queued: true, song: songInfo };
-  } else {
-    queue.songs.push(songInfo);
+  queue.songs.push(songInfo);
+
+  if (!wasPlaying) {
     playNext(guildId);
     return { success: true, queued: false, song: songInfo };
   }
+
+  return { success: true, queued: true, song: songInfo };
+}
+
+export function getQueueSnapshot(guildId) {
+  const queue = queues.get(guildId);
+  if (!queue || (!queue.currentSong && queue.songs.length === 0)) {
+    return null;
+  }
+
+  return {
+    current: queue.currentSong,
+    waiting: [...queue.songs]
+  };
+}
+
+export function promoteInQueue(guildId, index) {
+  const queue = queues.get(guildId);
+  if (!queue || index < 0 || index >= queue.songs.length) {
+    return null;
+  }
+
+  const [song] = queue.songs.splice(index, 1);
+  queue.songs.unshift(song);
+  return song;
 }
 
 export function pauseQueue(guildId) {
@@ -474,7 +685,6 @@ export function pauseQueue(guildId) {
 
   queue.paused = true;
   queue.player.pause();
-  stopUpdateInterval(guildId);
   updatePlayerMessage(guildId);
   return true;
 }
@@ -485,7 +695,6 @@ export function resumeQueue(guildId) {
 
   queue.paused = false;
   queue.player.unpause();
-  startUpdateInterval(guildId);
   updatePlayerMessage(guildId);
   return true;
 }
@@ -501,15 +710,19 @@ export function skipQueue(guildId) {
 export function stopQueue(guildId) {
   const queue = queues.get(guildId);
   if (!queue) return false;
+  if (queue.currentSong?.snapshotId != null && queue.currentSong?.snapshotPosition != null) {
+    db.updatePlaylistSnapshotResumeIndex(
+      queue.currentSong.snapshotId,
+      queue.currentSong.snapshotPosition
+    );
+  }
 
-  stopUpdateInterval(guildId);
   if (queue.timeoutId) clearTimeout(queue.timeoutId);
 
-  // Terminate streaming process
   if (queue.audioProcess) {
     try {
       queue.audioProcess.kill();
-    } catch (e) {
+    } catch {
       // ignore kill errors
     }
     queue.audioProcess = null;
@@ -528,31 +741,36 @@ export function stopQueue(guildId) {
 
 export function toggleFavoriteQueue(guildId, userTag) {
   const queue = queues.get(guildId);
-  if (!queue || !queue.currentSong) return { success: false, added: false };
+  if (!queue?.currentSong) return { success: false, added: false };
 
   const song = queue.currentSong;
   const isFav = db.isFavorite(song.url);
-  
+
   if (isFav) {
     db.removeFavorite(song.url);
     updatePlayerMessage(guildId);
     return { success: true, added: false, song };
-  } else {
-    db.addFavorite(song.title, song.url, userTag);
-    updatePlayerMessage(guildId);
-    return { success: true, added: true, song };
   }
+
+  db.addFavorite(song.title, song.url, userTag);
+  updatePlayerMessage(guildId);
+  return { success: true, added: true, song };
 }
 
 export default {
   queues,
   playSong,
+  playNext,
+  enqueueKnownSongs,
   pauseQueue,
   resumeQueue,
   skipQueue,
   stopQueue,
   toggleFavoriteQueue,
-  formatProgressBar,
+  getQueueSnapshot,
+  promoteInQueue,
   createPlayerEmbed,
-  createPlayerButtons
+  createPlayerButtons,
+  isPlaylistUrl,
+  PLAYLIST_MAX
 };
