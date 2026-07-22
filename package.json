@@ -1,0 +1,21 @@
+{
+  "name": "ldr-space-bot",
+  "version": "1.0.0",
+  "description": "Discord Bot for LDR couples with music player, diaries, countdowns, and interactions.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.19.2",
+    "@distube/ytdl-core": "^4.16.12",
+    "better-sqlite3": "^11.1.2",
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "ffmpeg-static": "^5.2.0",
+    "libsodium-wrappers": "^0.7.15",
+    "play-dl": "^1.9.7"
+  }
+}

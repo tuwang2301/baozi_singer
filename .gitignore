@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Local Environment Variables (Secrets)
+.env
+
+# SQLite Databases & temporary journal files
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Downloaded Binaries
+yt-dlp
+yt-dlp.exe
+
+# Local Data / Cache
+.data/
+.npm
+logs/
+*.log
