@@ -40,6 +40,7 @@ if (process.env.YOUTUBE_COOKIE && process.env.YOUTUBE_COOKIE !== 'your_youtube_c
 import { handlePlayerButtons } from './interactions/playerButtons.js';
 import { handleMusicSelect } from './interactions/musicSelect.js';
 import { handleDiaryButtons, handleDiaryModalSubmit } from './interactions/diaryButtons.js';
+import { handleQueuePromote, handleQueueRefresh } from './interactions/queueSelect.js';
 
 // Setup client intents
 const client = new Client({
@@ -106,6 +107,8 @@ client.on('interactionCreate', async interaction => {
         await handlePlayerButtons(interaction);
       } else if (customId === 'diary_write' || customId.startsWith('diary_prev_') || customId.startsWith('diary_next_')) {
         await handleDiaryButtons(interaction);
+      } else if (customId === 'queue_refresh') {
+        await handleQueueRefresh(interaction);
       }
       return;
     }
@@ -114,8 +117,16 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isStringSelectMenu()) {
       const { customId } = interaction;
       
-      if (customId === 'history_select' || customId === 'favorite_select') {
+      if (
+        customId === 'history_select' ||
+        customId === 'favorite_select' ||
+        customId === 'replay_pick_playlist' ||
+        customId === 'replay_pick_mode' ||
+        customId === 'replay_pick_song'
+      ) {
         await handleMusicSelect(interaction);
+      } else if (customId === 'queue_promote_select') {
+        await handleQueuePromote(interaction);
       }
       return;
     }

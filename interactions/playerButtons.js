@@ -1,31 +1,21 @@
-import { 
-  pauseQueue, 
-  resumeQueue, 
-  skipQueue, 
-  stopQueue, 
-  toggleFavoriteQueue,
-  queues
+import { MessageFlags } from 'discord.js';
+import {
+  pauseQueue,
+  resumeQueue,
+  skipQueue,
+  stopQueue,
+  toggleFavoriteQueue
 } from '../music/player.js';
+import { getPlayerAccess } from '../music/playerAccess.js';
 
 export async function handlePlayerButtons(interaction) {
+  const access = getPlayerAccess(interaction);
+  if (!access.ok) {
+    return interaction.reply(access.reply);
+  }
+
   const { customId, guildId } = interaction;
-  const queue = queues.get(guildId);
-
-  if (!queue) {
-    return interaction.reply({
-      content: '❌ Không có bài hát nào đang phát hoặc trình phát đã dừng.',
-      ephemeral: true
-    });
-  }
-
-  // Check if user is in the same voice channel as the bot
-  const memberVoiceChannel = interaction.member.voice.channel;
-  if (!memberVoiceChannel || memberVoiceChannel.id !== queue.voiceChannel.id) {
-    return interaction.reply({
-      content: '❌ Bạn phải ở cùng Voice Channel với bot để sử dụng các nút này!',
-      ephemeral: true
-    });
-  }
+  const { queue } = access;
 
   await interaction.deferUpdate();
 
@@ -47,18 +37,18 @@ export async function handlePlayerButtons(interaction) {
       await queue.textChannel.send(`⏹️ Bot đã được dừng phát và rời khỏi Voice Channel bởi **${interaction.user.username}**.`);
       break;
 
-    case 'player_favorite':
-      const userTag = interaction.user.username;
-      const res = toggleFavoriteQueue(guildId, userTag);
+    case 'player_favorite': {
+      const res = toggleFavoriteQueue(guildId, interaction.user.username);
       if (res.success) {
-        const msg = res.added 
-          ? `💖 Đã thêm bài hát vào danh sách yêu thích chung!` 
-          : `💔 Đã xóa bài hát khỏi danh sách yêu thích chung!`;
+        const msg = res.added
+          ? '💖 Đã thêm bài hát vào danh sách yêu thích chung!'
+          : '💔 Đã xóa bài hát khỏi danh sách yêu thích chung!';
         await interaction.followUp({
           content: msg,
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
       break;
+    }
   }
 }
