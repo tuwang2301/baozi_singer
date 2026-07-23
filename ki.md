@@ -21,6 +21,7 @@ Tài liệu này lưu trữ tiến độ dự án, các bài học kinh nghiệm
 | **Lệnh `/diary`** | ✅ Đã hoàn thành | Xem nhật ký lật trang, bấm nút mở Modal nhập nội dung trực tiếp trên Discord. |
 | **Lệnh `/countdown`, `/set-meetup`, `/set-start-date`** | ✅ Đã hoàn thành | Đếm ngược ngày yêu và ngày gặp lại. |
 | **Lệnh `/hug`, `/kiss`, `/miss`, `/stats`** | ✅ Đã hoàn thành | Tương tác ảnh GIF ngẫu nhiên và tích luỹ điểm thống kê. |
+| **Lệnh `/pause`, `/resume`, `/skip`, `/stop`, `/queue`, `/replay`** | ✅ Đã hoàn thành | Điều khiển phát nhạc, quản lý hàng đợi và phát lại playlist thông minh. |
 
 ---
 
@@ -43,12 +44,14 @@ Tài liệu này lưu trữ tiến độ dự án, các bài học kinh nghiệm
 
 ---
 
-## 🚀 Kế hoạch phát triển tiếp theo (Đang chờ xác nhận)
+## 🚀 Kế hoạch phát triển tiếp theo
 
-### Tính năng Hỗ trợ Playlist YouTube trong `/play`
-* **Mục tiêu:** Khi người dùng dán một liên kết Playlist YouTube, bot sẽ tự động nhận diện, trích xuất danh sách tất cả các bài hát trong playlist đó, đẩy toàn bộ vào hàng đợi (Queue) và lưu lịch sử tương ứng.
-* **Giải pháp kỹ thuật dự kiến:**
-  * Kiểm tra xem tham số đầu vào có chứa `list=` (Playlist ID) hay không.
-  * Nếu có, chạy lệnh trích xuất nhanh dạng phẳng (flat) từ `yt-dlp`:
-    `yt-dlp "<playlist_url>" --flat-playlist --dump-json --quiet`
-  * Phân tách kết quả đầu ra theo dòng (JSON Lines), parse thành mảng bài hát để đẩy vào hàng đợi `queue.songs`.
+### Tính năng Hỗ trợ Playlist YouTube trong `/play` & `/replay`
+* **Trạng thái:** ✅ Đã hoàn thành và xác minh.
+* **Mô tả kỹ thuật:**
+  * Nhận diện liên kết playlist chứa tham số `list=`.
+  * Dùng `yt-dlp --flat-playlist --dump-json` trích xuất nhanh toàn bộ danh sách bài hát (giới hạn `PLAYLIST_MAX = 25` bài) dưới định dạng JSON Lines.
+  * Tự động lưu trữ Snapshot của Playlist vào database SQLite (`playlist_snapshots`, `playlist_snapshot_songs`) kèm chỉ số bài đang phát (`resume_index`).
+  * Cung cấp lệnh `/replay` hiển thị danh sách các playlist đã lưu và trình đơn lựa chọn chế độ replay thông minh (Phát lại từ đầu, Tiếp tục từ bài dừng gần nhất, hoặc Nhảy tới bài thứ N).
+  * Cung cấp lệnh `/queue` để xem danh sách bài chờ và thực hiện đẩy bài hát lên đầu hàng đợi.
+  * Tối ưu hóa phản hồi dropdown bằng cách chuyển các giá trị lựa chọn trong select menu từ URL dài sang ID tự tăng trong cơ sở dữ liệu, loại bỏ hoàn toàn lỗi giới hạn ký tự (100 ký tự) của Discord Select Menu.
