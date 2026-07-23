@@ -1,3 +1,6 @@
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import ffmpeg from 'ffmpeg-static';
 import { dirname } from 'path';
 
