@@ -45,6 +45,7 @@ if (process.env.YOUTUBE_COOKIE && process.env.YOUTUBE_COOKIE !== 'your_youtube_c
 // Interaction Handlers
 import { handlePlayerButtons } from './interactions/playerButtons.js';
 import { handleMusicSelect } from './interactions/musicSelect.js';
+import { ensureYtdlp } from './music/player.js';
 import { handleDiaryButtons, handleDiaryModalSubmit } from './interactions/diaryButtons.js';
 import { handleQueuePromote, handleQueueRefresh } from './interactions/queueSelect.js';
 import { handleHelpSelect } from './commands/help.js';
@@ -79,8 +80,15 @@ for (const file of commandFiles) {
 }
 
 // Bot ready event
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`✅ LDR Space Bot đã sẵn sàng hoạt động! Đăng nhập dưới tên: ${client.user.tag}`);
+  
+  // Pre-download yt-dlp on startup so first command doesn't timeout
+  try {
+    await ensureYtdlp();
+  } catch (err) {
+    console.error('❌ Failed to pre-download yt-dlp on startup:', err);
+  }
   
   // Set presence activity
   client.user.setPresence({
