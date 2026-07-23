@@ -229,6 +229,10 @@ function ytdlpExtractInfo(query) {
       '--quiet'
     ];
 
+    if (process.env.YOUTUBE_COOKIE && process.env.YOUTUBE_COOKIE !== 'your_youtube_cookie_here') {
+      args.push('--add-header', `Cookie:${process.env.YOUTUBE_COOKIE}`);
+    }
+
     const child = spawn(ytdlpPath, args);
     let stdoutData = '';
     let stderrData = '';
@@ -513,7 +517,11 @@ export async function playNext(guildId) {
       '--js-runtimes', 'node'
     ];
 
-    console.log(`[Player] Đang chạy yt-dlp: ${ytdlpPath} ${args.join(' ')}`);
+    if (process.env.YOUTUBE_COOKIE && process.env.YOUTUBE_COOKIE !== 'your_youtube_cookie_here') {
+      args.push('--add-header', `Cookie:${process.env.YOUTUBE_COOKIE}`);
+    }
+
+    console.log(`[Player] Đang chạy yt-dlp: ${ytdlpPath} ${args.map(a => a.startsWith('Cookie:') ? 'Cookie:***' : a).join(' ')}`);
     const child = spawn(ytdlpPath, args);
     queue.audioProcess = child;
 
