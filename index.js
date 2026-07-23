@@ -41,6 +41,7 @@ import { handlePlayerButtons } from './interactions/playerButtons.js';
 import { handleMusicSelect } from './interactions/musicSelect.js';
 import { handleDiaryButtons, handleDiaryModalSubmit } from './interactions/diaryButtons.js';
 import { handleQueuePromote, handleQueueRefresh } from './interactions/queueSelect.js';
+import { handleHelpSelect } from './commands/help.js';
 
 // Setup client intents
 const client = new Client({
@@ -127,6 +128,8 @@ client.on('interactionCreate', async interaction => {
         await handleMusicSelect(interaction);
       } else if (customId === 'queue_promote_select') {
         await handleQueuePromote(interaction);
+      } else if (customId === 'help_category') {
+        await handleHelpSelect(interaction);
       }
       return;
     }
