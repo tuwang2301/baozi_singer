@@ -1,83 +1,83 @@
 # 🎶 Baozi Singer (LDR Space Bot)
 
-**Baozi Singer** (Ca sĩ Bánh Bao) là một Discord Bot được thiết kế đặc biệt dành riêng cho các cặp đôi yêu xa (LDR - Long Distance Relationship). Bot giúp kết nối và nâng cấp trải nghiệm gọi điện của hai bạn thông qua trình phát nhạc thông minh và các tính năng tương tác tình yêu trực tiếp ngay trong giao diện Discord.
+**Baozi Singer** (Ca sĩ Bánh Bao) is a dedicated Discord Bot customized for Long-Distance Relationship (LDR) couples. It enhances your voice calling experience on Discord by offering a smart music player alongside direct couple interactions, memories journal, and countdown widgets.
 
 ---
 
-## ✨ Tính năng nổi bật
+## ✨ Key Features
 
-### 🎵 1. Trình phát nhạc thông minh (Smart Music Player)
-*   **Phát nhạc mạnh mẽ:** Phát nhạc từ liên kết YouTube hoặc tìm kiếm từ khóa thông qua nhân độc lập **`yt-dlp`** kết hợp **`@discordjs/voice`**, giải quyết hoàn toàn lỗi 403 Forbidden và lỗi mã hóa âm thanh mới nhất của Discord.
-*   **Bảng điều khiển trực quan (Player UI):** Mỗi bài hát phát lên sẽ gửi kèm một Embed đẹp mắt hiển thị ảnh bìa, uploader, thời lượng, người yêu cầu phát và thanh tiến trình thời gian thực dạng chữ (`▬●▬▬▬▬▬▬▬▬▬ [0:30 / 3:15]`).
-*   **Nút bấm tương tác:**
-    *   `⏸️ Tạm dừng` / `▶️ Tiếp tục` nhạc linh hoạt.
-    *   `⏭️ Bỏ qua` (Skip) bài hát hiện tại.
-    *   `⏹️ Dừng phát` (Stop) và cho bot rời phòng voice.
-    *   `⭐ Yêu thích` để lưu nhanh bài hát vào danh sách yêu thích chung.
-*   **Lịch sử & Yêu thích:**
-    *   Lệnh `/history` hiển thị 25 bài hát đã nghe gần nhất.
-    *   Lệnh `/favorites` hiển thị danh sách bài hát yêu thích chung.
-    *   Cả hai lệnh đều đi kèm **Dropdown Select Menu** để chọn và phát lại nhanh ngay lập tức.
+### 🎵 1. Smart Music Player
+*   **High Performance Streaming:** Stream music from YouTube links or search terms using a custom **`yt-dlp`** backend integrated with **`@discordjs/voice`**. Completely resolves the notorious "403 Forbidden" streaming blocks and uses the latest GCM encryption standard.
+*   **Intuitive Control Interface (Player UI):** Posts a clean Embed message showing the thumbnail, uploader channel, duration, requester, and a text-based progress bar (`▬●▬▬▬▬▬▬▬▬▬ [0:30 / 3:15]`).
+*   **Interactive Control Buttons:**
+    *   `⏸️ Pause` / `▶️ Resume` playback dynamically.
+    *   `⏭️ Skip` the current track.
+    *   `⏹️ Stop` playing and disconnect the bot.
+    *   `⭐ Favorite` to bookmark the active song to the shared favorites library.
+*   **History & Bookmarks Dropdowns:**
+    *   `/history` displays the 25 most recently played songs.
+    *   `/favorites` lists all shared favorites.
+    *   Both commands feature a **String Select Menu** allowing couples to select and replay tracks instantly.
 
-### 📖 2. Nhật ký tình yêu chung (Love Diary)
-*   Gõ lệnh `/diary` để mở trang nhật ký chung của hai bạn.
-*   Hỗ trợ đọc nhật ký với các nút bấm chuyển trang (`◀️ Trang trước`, `▶️ Trang sau`).
-*   Bấm nút `✍️ Viết nhật ký` sẽ hiển thị một **Modal Popup** trực tiếp trên màn hình Discord để nhập tiêu đề và nội dung kỷ niệm, tự động lưu lại tác giả và thời gian vào cơ sở dữ liệu.
+### 📖 2. Love Diary
+*   Type `/diary` to open your shared memories space.
+*   Read diary pages chronologically using navigation buttons (`◀️ Prev Page`, `▶️ Next Page`).
+*   Click the `✍️ Write Diary` button to open a native **Discord Modal Popup** to submit new memories. Author name and creation timestamps are persisted automatically.
 
-### ⏳ 3. Đếm ngược & Kỷ niệm (Love Countdowns)
-*   Lệnh `/set-start-date [YYYY-MM-DD]` để lưu lại ngày hai bạn bắt đầu yêu nhau.
-*   Lệnh `/set-meetup [YYYY-MM-DD]` để cập nhật ngày hẹn gặp lại tiếp theo.
-*   Lệnh `/countdown` hiển thị số ngày hai bạn đã bên nhau và đếm ngược số ngày còn lại đến khi được gặp nhau.
+### ⏳ 3. Anniversary & Meetup Countdowns
+*   `/set-start-date [YYYY-MM-DD]` sets your relationship anniversary date.
+*   `/set-meetup [YYYY-MM-DD]` sets the date of your next flight/meetup.
+*   `/countdown` calculates the total number of days you've spent together and displays a live countdown to your next reunion.
 
-### 🫂 4. Tương tác đôi dễ thương (Cute Interactions)
-*   Gõ các lệnh `/hug`, `/kiss`, `/miss` gửi kèm các ảnh GIF hoạt hình dễ thương ngẫu nhiên để bày tỏ tình cảm với người ấy.
-*   Tự động cộng dồn số lần ôm, hôn, nhớ nhung vào cơ sở dữ liệu.
-*   Xem tổng quan tất cả cột mốc và điểm tương tác qua lệnh `/stats`.
-
----
-
-## 🛠️ Công nghệ sử dụng
-*   **Ngôn ngữ:** Node.js (ES Modules).
-*   **Thư viện Discord:** `discord.js` v14.
-*   **Xử lý âm thanh:** `@discordjs/voice` v0.19.2 (mã hóa GCM mới), `ffmpeg-static`, và nhân giải mã `yt-dlp`.
-*   **Cơ sở dữ liệu:** SQLite thông qua `better-sqlite3` đảm bảo lưu trữ dữ liệu cục bộ an toàn, không sử dụng bộ nhớ tạm.
+### 🫂 4. Couple Interactions
+*   Banish the distance with `/hug`, `/kiss`, and `/miss` commands which respond with cute, randomized anime GIFs.
+*   Keeps a running tally of your total interactions.
+*   Type `/stats` to view all couple milestones, diary pages, and interaction totals in one elegant card.
 
 ---
 
-## 🚀 Hướng dẫn cài đặt & Chạy Bot
+## 🛠️ Technology Stack
+*   **Environment:** Node.js (ES Modules).
+*   **Discord Library:** `discord.js` v14.
+*   **Audio Engine:** `@discordjs/voice` v0.19.2 (AES-256-GCM encryption), `ffmpeg-static`, and `yt-dlp` executable.
+*   **Persistence:** SQLite via `better-sqlite3` for local, production-ready storage.
 
-### 1. Chuẩn bị
-*   Đã cài đặt [Node.js](https://nodejs.org/) (Khuyến nghị phiên bản LTS mới nhất, >= 18).
-*   Tạo một ứng dụng Bot trên [Discord Developer Portal](https://discord.com/developers/applications) và bật đầy đủ các **Intents** trong mục Bot.
+---
 
-### 2. Tải mã nguồn & Cài đặt thư viện
-Tại thư mục dự án, chạy lệnh cài đặt các thư viện cần thiết:
+## 🚀 Getting Started
+
+### 1. Prerequisites
+*   [Node.js](https://nodejs.org/) installed (LTS version >= 18 recommended).
+*   A Discord Bot application created on the [Discord Developer Portal](https://discord.com/developers/applications) with all Gateway Intents enabled.
+
+### 2. Install Dependencies
+Initialize libraries and download required node packages:
 ```bash
 npm install
 ```
 
-### 3. Cấu hình biến môi trường
-Tạo một file `.env` từ file mẫu `.env.example` và điền thông tin của bạn:
+### 3. Environment Variables
+Create a `.env` file from the `.env.example` template:
 ```ini
 DISCORD_TOKEN=your_bot_token_here
 CLIENT_ID=your_bot_application_id
 GUILD_ID=your_testing_server_id
 ```
 
-### 4. Đăng ký Slash Commands
-Trước khi chạy bot lần đầu hoặc khi thêm lệnh mới, đăng ký các lệnh gạch chéo lên Discord:
+### 4. Deploy Slash Commands
+Before running the bot, register all application slash commands to Discord:
 ```bash
 npm run deploy
 ```
 
-### 5. Khởi động Bot
-Chạy lệnh khởi động bot cục bộ:
+### 5. Run the Bot
+Start the application locally:
 ```bash
 npm start
 ```
 
 ---
 
-## 🔒 Giấy phép & Bảo mật
-*   Dự án sử dụng cơ sở dữ liệu SQLite cục bộ (`ldr_space.db`). Hãy sao lưu tệp tin này nếu bạn muốn chuyển đổi máy chủ chạy bot để giữ nguyên nhật ký và chỉ số.
-*   **Lưu ý bảo mật:** Tuyệt đối không chia sẻ file `.env` chứa Discord Token của bạn lên các kho mã nguồn công cộng như GitHub.
+## 🔒 Security & Data
+*   Your couple data is saved in a local SQLite file named `ldr_space.db`. Back this file up to migrate your bot data between servers.
+*   **Important:** Never upload your `.env` file or commit your Discord tokens to public GitHub repositories.
