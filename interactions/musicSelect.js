@@ -43,17 +43,16 @@ function formatReplayResult(result, label) {
 }
 
 export async function handleMusicSelect(interaction) {
+  await interaction.deferReply();
+
   const { customId, values, member, guild, channel } = interaction;
 
   const voiceChannel = member.voice.channel;
   if (!voiceChannel) {
-    return interaction.reply({
-      content: '❌ Bạn phải ở trong một Voice Channel để phát bài hát này!',
-      flags: MessageFlags.Ephemeral
+    return interaction.editReply({
+      content: '❌ Bạn phải ở trong một Voice Channel để phát bài hát này!'
     });
   }
-
-  await interaction.deferReply();
 
   try {
     if (customId === 'history_select') {

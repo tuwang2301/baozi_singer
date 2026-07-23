@@ -12,18 +12,16 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction) {
+  await interaction.deferReply();
+
   const songQuery = interaction.options.getString('song');
   const voiceChannel = interaction.member.voice.channel;
 
   if (!voiceChannel) {
-    return interaction.reply({
-      content: '❌ Bạn phải tham gia một Voice Channel (kênh đàm thoại) trước!',
-      ephemeral: true
+    return interaction.editReply({
+      content: '❌ Bạn phải tham gia một Voice Channel (kênh đàm thoại) trước!'
     });
   }
-
-  // Defer reply because fetching metadata and streams from YouTube takes time
-  await interaction.deferReply();
 
   try {
     const result = await playSong(
