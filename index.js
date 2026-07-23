@@ -21,6 +21,9 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import 'dotenv/config';
 import play from 'play-dl';
+import http from 'http';
+
+const startTime = Date.now();
 
 // Load YouTube cookies for play-dl to bypass 403 Forbidden errors
 if (process.env.YOUTUBE_COOKIE && process.env.YOUTUBE_COOKIE !== 'your_youtube_cookie_here') {
@@ -169,3 +172,109 @@ if (!token || token === 'your_bot_token_here') {
 }
 
 client.login(token);
+
+// Keep-alive HTTP server for hosting health checks (Koyeb, Render, etc.)
+const PORT = process.env.PORT || 8080;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  
+  const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+  const uptimeHours = Math.floor(uptimeSeconds / 3600);
+  const uptimeMinutes = Math.floor((uptimeSeconds % 3600) / 60);
+  const uptimeSecs = uptimeSeconds % 60;
+  
+  const ping = client.ws.ping >= 0 ? `${client.ws.ping}ms` : 'Đang kết nối...';
+  
+  res.end(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Ca sĩ Bánh Bao Status</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #121214;
+            color: #e1e1e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+          }
+          .card {
+            background: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            max-width: 400px;
+            width: 100%;
+          }
+          h1 {
+            color: #ff75a0;
+            margin-top: 0;
+            font-size: 24px;
+          }
+          p {
+            color: #a1a1aa;
+            margin: 8px 0;
+          }
+          .status {
+            display: inline-block;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 20px;
+          }
+          .metric {
+            background: #202024;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 15px;
+            text-align: left;
+            font-family: monospace;
+          }
+          .metric-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+          }
+          .metric-label {
+            color: #71717a;
+          }
+          .metric-value {
+            color: #f4f4f5;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="status">● Đang hoạt động</div>
+          <h1>🎤 Ca sĩ Bánh Bao</h1>
+          <p>LDR Space Companion Bot</p>
+          <div class="metric">
+            <div class="metric-item">
+              <span class="metric-label">Uptime:</span>
+              <span class="metric-value">${uptimeHours}h ${uptimeMinutes}m ${uptimeSecs}s</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Discord Ping:</span>
+              <span class="metric-value">${ping}</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Status:</span>
+              <span class="metric-value">Ready</span>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+}).listen(PORT, '0.0.0.0', () => {
+  console.log(`🌐 Keep-alive HTTP server đang chạy trên port ${PORT}`);
+});
