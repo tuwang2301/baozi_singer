@@ -227,8 +227,7 @@ function ytdlpExtractInfo(query) {
       '--no-playlist',
       '--js-runtimes', 'node',
       '--quiet',
-      '--no-warnings',
-      '--extractor-args', 'youtube:player_client=web,ios'
+      '--no-warnings'
     ];
 
     if (process.env.YOUTUBE_COOKIE && process.env.YOUTUBE_COOKIE !== 'your_youtube_cookie_here') {
@@ -517,8 +516,7 @@ export async function playNext(guildId) {
       '--no-playlist',
       '--quiet',
       '--js-runtimes', 'node',
-      '--no-warnings',
-      '--extractor-args', 'youtube:player_client=web,ios'
+      '--no-warnings'
     ];
 
     if (process.env.YOUTUBE_COOKIE && process.env.YOUTUBE_COOKIE !== 'your_youtube_cookie_here') {
