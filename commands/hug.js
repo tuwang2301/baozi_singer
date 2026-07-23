@@ -20,7 +20,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const target = interaction.options.getUser('who');
-  const count = db.incrementStat('hug_count');
+  const count = await db.incrementStat('hug_count');
 
   const randomGif = HUG_GIFS[Math.floor(Math.random() * HUG_GIFS.length)];
   

@@ -57,7 +57,7 @@ export async function handleMusicSelect(interaction) {
 
   try {
     if (customId === 'history_select') {
-      const entry = db.getMusicHistoryEntry(parseInt(values[0], 10));
+      const entry = await db.getMusicHistoryEntry(parseInt(values[0], 10));
       if (!entry) {
         return interaction.editReply({ content: '❌ Bài hát này không còn trong lịch sử.' });
       }
@@ -75,7 +75,7 @@ export async function handleMusicSelect(interaction) {
           : `🎶 Bắt đầu phát: **[${result.song.title}](${result.song.url})**`
       });
     } else if (customId === 'favorite_select') {
-      const favorite = db.getFavoriteById(parseInt(values[0], 10));
+      const favorite = await db.getFavoriteById(parseInt(values[0], 10));
       if (!favorite) {
         return interaction.editReply({ content: '❌ Bài hát này không còn trong danh sách yêu thích.' });
       }
@@ -94,7 +94,7 @@ export async function handleMusicSelect(interaction) {
       });
     } else if (customId === 'replay_pick_playlist') {
       const snapshotId = parseInt(values[0], 10);
-      const snapshot = db.getPlaylistSnapshot(snapshotId);
+      const snapshot = await db.getPlaylistSnapshot(snapshotId);
       if (!snapshot) {
         return interaction.editReply({ content: '❌ Playlist này không còn tồn tại.' });
       }
@@ -116,12 +116,12 @@ export async function handleMusicSelect(interaction) {
     } else if (customId === 'replay_pick_mode') {
       const [mode, snapshotIdRaw] = values[0].split(':');
       const snapshotId = parseInt(snapshotIdRaw, 10);
-      const snapshot = db.getPlaylistSnapshot(snapshotId);
+      const snapshot = await db.getPlaylistSnapshot(snapshotId);
       if (!snapshot) {
         return interaction.editReply({ content: '❌ Playlist này không còn tồn tại.' });
       }
 
-      const songs = db.getPlaylistSnapshotSongs(snapshotId);
+      const songs = await db.getPlaylistSnapshotSongs(snapshotId);
       if (!songs.length) {
         return interaction.editReply({ content: '❌ Playlist này đang trống.' });
       }
@@ -165,11 +165,11 @@ export async function handleMusicSelect(interaction) {
       const [snapshotIdRaw, startIndexRaw] = values[0].split(':');
       const snapshotId = parseInt(snapshotIdRaw, 10);
       const startIndex = parseInt(startIndexRaw, 10);
-      const snapshot = db.getPlaylistSnapshot(snapshotId);
+      const snapshot = await db.getPlaylistSnapshot(snapshotId);
       if (!snapshot) {
         return interaction.editReply({ content: '❌ Playlist này không còn tồn tại.' });
       }
-      const songs = db.getPlaylistSnapshotSongs(snapshotId);
+      const songs = await db.getPlaylistSnapshotSongs(snapshotId);
       if (!songs.length || startIndex >= songs.length) {
         return interaction.editReply({ content: '❌ Bài đã chọn không hợp lệ.' });
       }

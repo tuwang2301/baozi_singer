@@ -20,7 +20,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const target = interaction.options.getUser('who');
-  const count = db.incrementStat('kiss_count');
+  const count = await db.incrementStat('kiss_count');
 
   const randomGif = KISS_GIFS[Math.floor(Math.random() * KISS_GIFS.length)];
   

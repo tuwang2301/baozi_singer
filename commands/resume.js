@@ -21,7 +21,7 @@ export async function execute(interaction) {
     });
   }
 
-  resumeQueue(interaction.guildId);
+  await resumeQueue(interaction.guildId);
 
   return interaction.reply({
     content: `▶️ Tiếp tục phát **[${queue.currentSong.title}](${queue.currentSong.url})**.`,

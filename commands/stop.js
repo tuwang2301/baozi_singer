@@ -15,7 +15,7 @@ export async function execute(interaction) {
   const { queue } = access;
   const textChannel = queue.textChannel;
 
-  stopQueue(interaction.guildId);
+  await stopQueue(interaction.guildId);
 
   await textChannel.send(`⏹️ Bot đã được dừng phát và rời khỏi Voice Channel bởi **${interaction.user.username}**.`);
 

@@ -22,9 +22,9 @@ export async function handlePlayerButtons(interaction) {
   switch (customId) {
     case 'player_pause_resume':
       if (queue.paused) {
-        resumeQueue(guildId);
+        await resumeQueue(guildId);
       } else {
-        pauseQueue(guildId);
+        await pauseQueue(guildId);
       }
       break;
 
@@ -38,7 +38,7 @@ export async function handlePlayerButtons(interaction) {
       break;
 
     case 'player_favorite': {
-      const res = toggleFavoriteQueue(guildId, interaction.user.username);
+      const res = await toggleFavoriteQueue(guildId, interaction.user.username);
       if (res.success) {
         const msg = res.added
           ? '💖 Đã thêm bài hát vào danh sách yêu thích chung!'

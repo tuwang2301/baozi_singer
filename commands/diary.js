@@ -11,8 +11,8 @@ export const data = new SlashCommandBuilder()
   .setName('diary')
   .setDescription('Mở nhật ký tình yêu của hai bạn');
 
-export function createDiaryView(page = 1) {
-  const totalPages = db.getDiaryTotalPages();
+export async function createDiaryView(page = 1) {
+  const totalPages = await db.getDiaryTotalPages();
   const embed = new EmbedBuilder().setColor('#ffadad');
 
   if (totalPages === 0) {
@@ -50,7 +50,7 @@ export function createDiaryView(page = 1) {
 
   // Ensure page is within bounds
   let currentPage = Math.max(1, Math.min(page, totalPages));
-  const entry = db.getDiaryPage(currentPage);
+  const entry = await db.getDiaryPage(currentPage);
 
   if (!entry) {
     // Fallback if something went wrong
@@ -102,6 +102,6 @@ export function createDiaryView(page = 1) {
 }
 
 export async function execute(interaction) {
-  const diaryView = createDiaryView(1);
+  const diaryView = await createDiaryView(1);
   return interaction.reply(diaryView);
 }

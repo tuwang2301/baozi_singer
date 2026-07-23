@@ -21,7 +21,7 @@ export async function execute(interaction) {
     });
   }
 
-  pauseQueue(interaction.guildId);
+  await pauseQueue(interaction.guildId);
 
   return interaction.reply({
     content: `⏸️ Đã tạm dừng **[${queue.currentSong.title}](${queue.currentSong.url})**.`,

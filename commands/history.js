@@ -49,7 +49,7 @@ export const data = new SlashCommandBuilder()
   .setDescription('Hiển thị 25 bài hát đã nghe gần đây');
 
 export async function execute(interaction) {
-  const history = db.getMusicHistory(25);
+  const history = await db.getMusicHistory(25);
 
   if (history.length === 0) {
     return interaction.reply({

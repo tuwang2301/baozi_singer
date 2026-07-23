@@ -31,7 +31,7 @@ export async function execute(interaction) {
     });
   }
 
-  db.setStat('start_date', dateStr);
+  await db.setStat('start_date', dateStr);
 
   return interaction.reply({
     content: `💖 Ghi nhận thành công! Ngày kỷ niệm bắt đầu yêu nhau được đặt là: **${dateStr}**.\n👉 Gõ lệnh \`/countdown\` để xem hai bạn đã bên nhau bao lâu nhé!`

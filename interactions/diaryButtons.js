@@ -50,11 +50,11 @@ export async function handleDiaryButtons(interaction) {
     if (action === 'prev') {
       targetPage = Math.max(1, currentPage - 1);
     } else if (action === 'next') {
-      const totalPages = db.getDiaryTotalPages();
+      const totalPages = await db.getDiaryTotalPages();
       targetPage = Math.min(totalPages, currentPage + 1);
     }
 
-    const diaryView = createDiaryView(targetPage);
+    const diaryView = await createDiaryView(targetPage);
     return interaction.update(diaryView);
   }
 }
@@ -67,11 +67,11 @@ export async function handleDiaryModalSubmit(interaction) {
   const author = interaction.user.username;
 
   try {
-    db.addDiaryEntry(title, content, author);
-    const totalPages = db.getDiaryTotalPages();
+    await db.addDiaryEntry(title, content, author);
+    const totalPages = await db.getDiaryTotalPages();
 
     // Re-render the diary view and show the newly created page (which will be the last page)
-    const diaryView = createDiaryView(totalPages);
+    const diaryView = await createDiaryView(totalPages);
     
     // Update the message that triggered the modal
     if (interaction.message) {

@@ -44,11 +44,11 @@ function resetPlaybackSession(queue) {
   queue.sessionLabel = null;
 }
 
-function savePlaybackSessionIfNeeded(queue) {
+async function savePlaybackSessionIfNeeded(queue) {
   if (!queue.sessionSongs?.length) return;
 
   const label = queue.sessionLabel || `Phiên nghe ${new Date().toLocaleDateString('vi-VN')}`;
-  db.savePlaybackSession(label, queue.sessionSongs);
+  await db.savePlaybackSession(label, queue.sessionSongs);
   resetPlaybackSession(queue);
 }
 
@@ -95,7 +95,7 @@ export async function enqueueKnownSongs(guildId, voiceChannel, textChannel, song
   queue.songs.push(...prepared);
 
   if (!wasPlaying) {
-    playNext(guildId);
+    await playNext(guildId);
   }
 
   return {
@@ -297,8 +297,8 @@ export async function ytdlpExtractPlaylist(url, max = PLAYLIST_MAX) {
   };
 }
 
-export function createPlayerEmbed(song, paused = false) {
-  const isFav = db.isFavorite(song.url);
+export async function createPlayerEmbed(song, paused = false) {
+  const isFav = await db.isFavorite(song.url);
   const statusText = paused ? '⏸️ Đang tạm dừng' : '▶️ Đang phát';
 
   const embed = new EmbedBuilder()
@@ -321,8 +321,8 @@ export function createPlayerEmbed(song, paused = false) {
   return embed;
 }
 
-export function createPlayerButtons(paused = false, url = '') {
-  const isFav = db.isFavorite(url);
+export async function createPlayerButtons(paused = false, url = '') {
+  const isFav = await db.isFavorite(url);
 
   const pauseResumeButton = new ButtonBuilder()
     .setCustomId('player_pause_resume')
@@ -356,8 +356,8 @@ async function updatePlayerMessage(guildId) {
   if (!queue?.currentSong || !queue.playerMessage) return;
 
   try {
-    const embed = createPlayerEmbed(queue.currentSong, queue.paused);
-    const row = createPlayerButtons(queue.paused, queue.currentSong.url);
+    const embed = await createPlayerEmbed(queue.currentSong, queue.paused);
+    const row = await createPlayerButtons(queue.paused, queue.currentSong.url);
 
     await queue.playerMessage.edit({
       embeds: [embed],
@@ -390,7 +390,7 @@ function ensureQueue(guildId, voiceChannel, textChannel) {
         entersState(connection, VoiceConnectionStatus.Connecting, 5000),
       ]);
     } catch {
-      stopQueue(guildId);
+      await stopQueue(guildId);
     }
   });
 
@@ -457,10 +457,10 @@ export async function playNext(guildId) {
 
   if (queue.songs.length === 0) {
     if (queue.activeSnapshotId != null) {
-      db.updatePlaylistSnapshotResumeIndex(queue.activeSnapshotId, 0);
+      await db.updatePlaylistSnapshotResumeIndex(queue.activeSnapshotId, 0);
       queue.activeSnapshotId = null;
     }
-    savePlaybackSessionIfNeeded(queue);
+    await savePlaybackSessionIfNeeded(queue);
     queue.currentSong = null;
     queue.audioResource = null;
 
@@ -495,13 +495,13 @@ export async function playNext(guildId) {
 
   try {
     if (nextSong.snapshotId != null && nextSong.snapshotPosition != null) {
-      db.updatePlaylistSnapshotResumeIndex(nextSong.snapshotId, nextSong.snapshotPosition);
+      await db.updatePlaylistSnapshotResumeIndex(nextSong.snapshotId, nextSong.snapshotPosition);
       queue.activeSnapshotId = nextSong.snapshotId;
     }
     if (!queue.sessionSongs) queue.sessionSongs = [];
     queue.sessionSongs.push({ title: nextSong.title, url: nextSong.url });
 
-    db.addMusicHistory(nextSong.title, nextSong.url);
+    await db.addMusicHistory(nextSong.title, nextSong.url);
     console.log(`[Player] Bắt đầu phát bài hát: "${nextSong.title}" (${nextSong.url})`);
 
     const args = [
@@ -533,8 +533,8 @@ export async function playNext(guildId) {
     queue.player.play(resource);
     console.log('[Player] Luồng dữ liệu âm thanh đã nạp thành công vào AudioPlayer.');
 
-    const embed = createPlayerEmbed(nextSong, false);
-    const row = createPlayerButtons(false, nextSong.url);
+    const embed = await createPlayerEmbed(nextSong, false);
+    const row = await createPlayerButtons(false, nextSong.url);
 
     if (queue.playerMessage) {
       try {
@@ -559,7 +559,7 @@ export async function playNext(guildId) {
     } catch (e) {
       console.error('Failed to send playback error message:', e);
     }
-    playNext(guildId);
+    await playNext(guildId);
   }
 }
 
@@ -600,7 +600,7 @@ export async function playSong(guildId, voiceChannel, textChannel, query, reques
       return song;
     });
 
-    const snapshotId = db.upsertPlaylistSnapshot(
+    const snapshotId = await db.upsertPlaylistSnapshot(
       playlistData.playlistTitle,
       query,
       songs.map(song => ({ title: song.title, url: song.url })),
@@ -617,7 +617,7 @@ export async function playSong(guildId, voiceChannel, textChannel, query, reques
     queue.songs.push(...songs);
 
     if (!wasPlaying) {
-      playNext(guildId);
+      await playNext(guildId);
     }
 
     return {
@@ -649,7 +649,7 @@ export async function playSong(guildId, voiceChannel, textChannel, query, reques
   queue.songs.push(songInfo);
 
   if (!wasPlaying) {
-    playNext(guildId);
+    await playNext(guildId);
     return { success: true, queued: false, song: songInfo };
   }
 
@@ -679,23 +679,23 @@ export function promoteInQueue(guildId, index) {
   return song;
 }
 
-export function pauseQueue(guildId) {
+export async function pauseQueue(guildId) {
   const queue = queues.get(guildId);
   if (!queue || queue.paused) return false;
 
   queue.paused = true;
   queue.player.pause();
-  updatePlayerMessage(guildId);
+  await updatePlayerMessage(guildId);
   return true;
 }
 
-export function resumeQueue(guildId) {
+export async function resumeQueue(guildId) {
   const queue = queues.get(guildId);
   if (!queue || !queue.paused) return false;
 
   queue.paused = false;
   queue.player.unpause();
-  updatePlayerMessage(guildId);
+  await updatePlayerMessage(guildId);
   return true;
 }
 
@@ -707,11 +707,11 @@ export function skipQueue(guildId) {
   return true;
 }
 
-export function stopQueue(guildId) {
+export async function stopQueue(guildId) {
   const queue = queues.get(guildId);
   if (!queue) return false;
   if (queue.currentSong?.snapshotId != null && queue.currentSong?.snapshotPosition != null) {
-    db.updatePlaylistSnapshotResumeIndex(
+    await db.updatePlaylistSnapshotResumeIndex(
       queue.currentSong.snapshotId,
       queue.currentSong.snapshotPosition
     );
@@ -739,21 +739,21 @@ export function stopQueue(guildId) {
   return true;
 }
 
-export function toggleFavoriteQueue(guildId, userTag) {
+export async function toggleFavoriteQueue(guildId, userTag) {
   const queue = queues.get(guildId);
   if (!queue?.currentSong) return { success: false, added: false };
 
   const song = queue.currentSong;
-  const isFav = db.isFavorite(song.url);
+  const isFav = await db.isFavorite(song.url);
 
   if (isFav) {
-    db.removeFavorite(song.url);
-    updatePlayerMessage(guildId);
+    await db.removeFavorite(song.url);
+    await updatePlayerMessage(guildId);
     return { success: true, added: false, song };
   }
 
-  db.addFavorite(song.title, song.url, userTag);
-  updatePlayerMessage(guildId);
+  await db.addFavorite(song.title, song.url, userTag);
+  await updatePlayerMessage(guildId);
   return { success: true, added: true, song };
 }
 

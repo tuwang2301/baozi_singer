@@ -19,7 +19,7 @@ export const data = new SlashCommandBuilder()
   .setDescription('Hiển thị danh sách các bài hát yêu thích chung');
 
 export async function execute(interaction) {
-  const favorites = db.getFavorites(25);
+  const favorites = await db.getFavorites();
 
   if (favorites.length === 0) {
     return interaction.reply({

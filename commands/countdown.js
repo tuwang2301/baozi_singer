@@ -6,8 +6,8 @@ export const data = new SlashCommandBuilder()
   .setDescription('Hiển thị số ngày đã bên nhau và đếm ngược tới ngày gặp lại');
 
 export async function execute(interaction) {
-  const startDateStr = db.getStat('start_date');
-  const meetupDateStr = db.getStat('meetup_date');
+  const startDateStr = await db.getStat('start_date');
+  const meetupDateStr = await db.getStat('meetup_date');
 
   const embed = new EmbedBuilder()
     .setColor('#ffd6a5')

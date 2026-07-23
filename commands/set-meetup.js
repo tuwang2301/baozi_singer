@@ -31,7 +31,7 @@ export async function execute(interaction) {
     });
   }
 
-  db.setStat('meetup_date', dateStr);
+  await db.setStat('meetup_date', dateStr);
 
   return interaction.reply({
     content: `✈️ Cập nhật thành công! Ngày gặp nhau tiếp theo của hai bạn được đặt là: **${dateStr}**.\n👉 Xem đếm ngược bằng lệnh \`/countdown\`.`

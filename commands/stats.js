@@ -6,13 +6,14 @@ export const data = new SlashCommandBuilder()
   .setDescription('Hiển thị bảng thống kê tương tác và kỷ niệm của hai bạn');
 
 export async function execute(interaction) {
-  const startDate = db.getStat('start_date') || 'Chưa thiết lập (Dùng `/set-start-date`)';
-  const meetupDate = db.getStat('meetup_date') || 'Chưa thiết lập (Dùng `/set-meetup`)';
+  const stats = await db.getStats();
+  const startDate = stats.start_date || 'Chưa thiết lập (Dùng `/set-start-date`)';
+  const meetupDate = stats.meetup_date || 'Chưa thiết lập (Dùng `/set-meetup`)';
   
-  const hugs = db.getStat('hug_count') || '0';
-  const kisses = db.getStat('kiss_count') || '0';
-  const misses = db.getStat('miss_count') || '0';
-  const diaryCount = db.getDiaryTotalPages() || '0';
+  const hugs = stats.hug_count || '0';
+  const kisses = stats.kiss_count || '0';
+  const misses = stats.miss_count || '0';
+  const diaryCount = await db.getDiaryTotalPages() || 0;
 
   const embed = new EmbedBuilder()
     .setColor('#bdb2ff')

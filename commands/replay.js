@@ -18,7 +18,7 @@ export const data = new SlashCommandBuilder()
   .setDescription('Phát lại playlist đã lưu: từ đầu, tiếp tục, hoặc nhảy tới bài');
 
 export async function execute(interaction) {
-  const snapshots = db.getRecentPlaylistSnapshots(50);
+  const snapshots = await db.getRecentPlaylistSnapshots(50);
   const deduped = [];
   const seenUrls = new Set();
   for (const snapshot of snapshots) {
