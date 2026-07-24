@@ -7,6 +7,7 @@ import {
   MessageFlags 
 } from 'discord.js';
 import crypto from 'crypto';
+import * as cheerio from 'cheerio';
 import { queues } from '../music/player.js';
 
 export const lyricsCache = new Map();
@@ -141,6 +142,82 @@ export function buildLyricsView(title, artist, pages, currentPageIndex, cacheId)
   return { embeds: [embed], components: [row] };
 }
 
+// Genius API Search Helper
+async function searchGenius(query, accessToken) {
+  try {
+    const response = await fetch(`https://api.genius.com/search?q=${encodeURIComponent(query)}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': 'BaoziSingerBot/1.0 (https://github.com/tuwang2301/baozi_singer)'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Genius API returned status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const hits = data.response.hits;
+    if (!hits || hits.length === 0) return null;
+
+    const song = hits[0].result;
+    return {
+      title: song.title,
+      artist: song.primary_artist.name,
+      url: song.url
+    };
+  } catch (err) {
+    console.error('[Lyrics] Genius search error:', err);
+    return null;
+  }
+}
+
+// Genius Web Scraper Helper
+async function scrapeGeniusLyrics(url) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Genius page fetch returned status ${response.status}`);
+    }
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    // Remove exclude-from-selection elements to strip headers, metadata, description
+    $('[data-exclude-from-selection="true"]').remove();
+
+    // Replace <br> tags with newlines
+    $('br').replaceWith('\n');
+
+    let lyrics = '';
+
+    // Modern selector
+    const containers = $('div[data-lyrics-container="true"]');
+    if (containers.length > 0) {
+      containers.each((_, el) => {
+        const text = $(el).text();
+        lyrics += text + '\n\n';
+      });
+    } else {
+      // Legacy selector
+      const legacyContainer = $('div.lyrics');
+      if (legacyContainer.length > 0) {
+        lyrics = legacyContainer.text();
+      }
+    }
+
+    return lyrics.trim();
+  } catch (err) {
+    console.error('[Lyrics] Genius scraping error:', err);
+    return null;
+  }
+}
+
 export const data = new SlashCommandBuilder()
   .setName('lyrics')
   .setDescription('Tìm kiếm và hiển thị lời bài hát')
@@ -174,43 +251,68 @@ export async function execute(interaction) {
   console.log(`[Lyrics] Đang tìm kiếm lời bài hát cho: "${cleanQuery}" (Từ gốc: "${query}")`);
 
   try {
+    // 1. First attempt: Search using LRCLIB API
+    let title = '';
+    let artist = '';
+    let pages = [];
+    let method = '';
+
     const response = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(cleanQuery)}`, {
       headers: {
         'User-Agent': 'BaoziSingerBot/1.0 (https://github.com/tuwang2301/baozi_singer)'
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`LRCLIB API returned status ${response.statusCode}`);
+    if (response.ok) {
+      const results = await response.json();
+      const match = results.find(r => r.plainLyrics && r.plainLyrics.trim().length > 0);
+      if (match) {
+        title = match.trackName;
+        artist = match.artistName;
+        pages = splitLyrics(match.plainLyrics);
+        method = 'LRCLIB';
+      }
     }
 
-    const results = await response.json();
-    
-    // Find the first result that has plain lyrics
-    const match = results.find(r => r.plainLyrics && r.plainLyrics.trim().length > 0);
+    // 2. Second attempt (Fallback): Search and scrape Genius if token is provided
+    const geniusToken = process.env.GENIUS_ACCESS_TOKEN;
+    const hasGeniusToken = geniusToken && geniusToken !== 'your_genius_access_token_here' && geniusToken.trim().length > 0;
 
-    if (!match) {
-      return interaction.editReply({
-        content: `❌ Không tìm thấy lời bài hát cho: **${cleanQuery}**`
-      });
+    if (pages.length === 0 && hasGeniusToken) {
+      console.log(`[Lyrics] Không tìm thấy trên LRCLIB. Tiến hành tìm kiếm dự phòng trên Genius...`);
+      const geniusSong = await searchGenius(cleanQuery, geniusToken);
+      if (geniusSong) {
+        console.log(`[Lyrics] Tìm thấy bài hát trên Genius: "${geniusSong.title}" - "${geniusSong.artist}". Bắt đầu bóc tách...`);
+        const geniusLyrics = await scrapeGeniusLyrics(geniusSong.url);
+        if (geniusLyrics) {
+          title = geniusSong.title;
+          artist = geniusSong.artist;
+          pages = splitLyrics(geniusLyrics);
+          method = 'Genius';
+        }
+      }
     }
 
-    const pages = splitLyrics(match.plainLyrics);
+    // 3. Handle results
     if (pages.length === 0) {
-      return interaction.editReply({
-        content: `❌ Không tìm thấy lời bài hát cho: **${cleanQuery}**`
-      });
+      let errorMsg = `❌ Không tìm thấy lời bài hát cho: **${cleanQuery}** trên thư viện LRCLIB.`;
+      if (!hasGeniusToken) {
+        errorMsg += '\n💡 *Bạn có thể cấu hình biến `GENIUS_ACCESS_TOKEN` trong file `.env` để kích hoạt tìm kiếm dự phòng từ kho dữ liệu khổng lồ của Genius.*';
+      }
+      return interaction.editReply({ content: errorMsg });
     }
+
+    console.log(`[Lyrics] Đã nạp thành công lời bài hát từ nguồn ${method}. Số trang: ${pages.length}`);
 
     const cacheId = crypto.randomBytes(4).toString('hex');
     lyricsCache.set(cacheId, {
-      title: match.trackName,
-      artist: match.artistName,
+      title,
+      artist,
       pages,
       createdAt: Date.now()
     });
 
-    const view = buildLyricsView(match.trackName, match.artistName, pages, 0, cacheId);
+    const view = buildLyricsView(title, artist, pages, 0, cacheId);
     return interaction.editReply(view);
 
   } catch (err) {
