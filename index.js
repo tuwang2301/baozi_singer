@@ -49,6 +49,7 @@ import { ensureYtdlp } from './music/player.js';
 import { handleDiaryButtons, handleDiaryModalSubmit } from './interactions/diaryButtons.js';
 import { handleQueuePromote, handleQueueRefresh } from './interactions/queueSelect.js';
 import { handleHelpSelect } from './commands/help.js';
+import { handleLyricsButtons } from './interactions/lyricsSelect.js';
 
 // Setup client intents
 const client = new Client({
@@ -124,6 +125,8 @@ client.on('interactionCreate', async interaction => {
         await handleDiaryButtons(interaction);
       } else if (customId === 'queue_refresh') {
         await handleQueueRefresh(interaction);
+      } else if (customId.startsWith('lyrics:')) {
+        await handleLyricsButtons(interaction);
       }
       return;
     }
