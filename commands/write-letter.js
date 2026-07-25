@@ -74,7 +74,7 @@ export async function execute(interaction) {
   // Build and show the Modal
   // Note: customId has encoded recipient and unlock date metadata
   const modal = new ModalBuilder()
-    .setCustomId(`letter_write_modal:${recipient.id}:${targetDate.toISOString()}`)
+    .setCustomId(`letter_write_modal:${recipient.id}:${targetDate.getTime()}`)
     .setTitle('Thư gửi tương lai ✉️');
 
   const titleInput = new TextInputBuilder()

@@ -1,4 +1,4 @@
-import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import { createFutureLetter, getLetterById } from '../database.js';
 import { execute as showMailbox } from '../commands/letters.js';
 
@@ -16,12 +16,12 @@ export async function handleLetterModalSubmit(interaction) {
 
   const parts = customId.split(':');
   const recipientId = parts[1];
-  const unlockDateStr = parts[2];
+  const unlockDateMs = parseInt(parts[2], 10);
 
   const title = interaction.fields.getTextInputValue('letter_title');
   const content = interaction.fields.getTextInputValue('letter_content');
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     const recipient = await interaction.client.users.fetch(recipientId);
@@ -33,14 +33,14 @@ export async function handleLetterModalSubmit(interaction) {
       senderName: interaction.user.username,
       recipientId,
       recipientName: recipient.username,
-      unlockDate: new Date(unlockDateStr),
+      unlockDate: new Date(unlockDateMs),
       channelId: interaction.channelId
     });
 
-    const unlockDateFormatted = formatDateShort(unlockDateStr);
+    const unlockDateFormatted = formatDateShort(unlockDateMs);
     
     return interaction.editReply({
-      content: `✅ **Thư tay gửi tương lai đã được niêm phong thành công!**\nBức thư này sẽ được gửi ẩn danh và mở khóa cho **@${recipient.username}** vào ngày **${unlockDateFormatted}**. ✉️💕`
+      content: `✅ **Thư tay gửi tương lai đã được niêm phong thành công!**\nBức thư này sẽ được gửi và mở khóa cho **@${recipient.username}** vào ngày **${unlockDateFormatted}**. ✉️💕`
     });
 
   } catch (err) {
