@@ -87,6 +87,20 @@ async function initDb() {
         url TEXT NOT NULL,
         FOREIGN KEY (snapshot_id) REFERENCES playlist_snapshots(id) ON DELETE CASCADE
       );
+
+      CREATE TABLE IF NOT EXISTS future_letters (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        sender_id TEXT NOT NULL,
+        sender_name TEXT NOT NULL,
+        recipient_id TEXT NOT NULL,
+        recipient_name TEXT NOT NULL,
+        unlock_date TIMESTAMP WITH TIME ZONE NOT NULL,
+        channel_id TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        is_notified BOOLEAN DEFAULT FALSE
+      );
     `);
     console.log('✅ PostgreSQL tables checked/initialized successfully.');
   } catch (err) {
@@ -470,6 +484,111 @@ export async function incrementStat(key) {
   }
 }
 
+// --- Future Letters ---
+
+export async function createFutureLetter({ title, content, senderId, senderName, recipientId, recipientName, unlockDate, channelId }) {
+  try {
+    const res = await pool.query(
+      `INSERT INTO future_letters (title, content, sender_id, sender_name, recipient_id, recipient_name, unlock_date, channel_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [title, content, senderId, senderName, recipientId, recipientName, unlockDate, channelId]
+    );
+    return res.rows[0].id;
+  } catch (err) {
+    console.error('Failed to create future letter:', err);
+    throw err;
+  }
+}
+
+export async function getInboxLetters(userId) {
+  try {
+    const res = await pool.query(
+      `SELECT id, title, sender_id, sender_name, unlock_date, created_at,
+              (unlock_date <= CURRENT_TIMESTAMP) as is_unlocked
+       FROM future_letters
+       WHERE recipient_id = $1
+       ORDER BY unlock_date DESC`,
+      [userId]
+    );
+    return res.rows;
+  } catch (err) {
+    console.error('Failed to get inbox letters:', err);
+    return [];
+  }
+}
+
+export async function getOutboxLetters(userId) {
+  try {
+    const res = await pool.query(
+      `SELECT id, title, recipient_id, recipient_name, unlock_date, created_at,
+              (unlock_date <= CURRENT_TIMESTAMP) as is_unlocked
+       FROM future_letters
+       WHERE sender_id = $1
+       ORDER BY unlock_date DESC`,
+      [userId]
+    );
+    return res.rows;
+  } catch (err) {
+    console.error('Failed to get outbox letters:', err);
+    return [];
+  }
+}
+
+export async function getUnnotifiedUnlockedLetters() {
+  try {
+    const res = await pool.query(
+      `SELECT id, title, sender_id, sender_name, recipient_id, recipient_name, channel_id, unlock_date
+       FROM future_letters
+       WHERE unlock_date <= CURRENT_TIMESTAMP AND is_notified = FALSE`
+    );
+    return res.rows;
+  } catch (err) {
+    console.error('Failed to get unnotified unlocked letters:', err);
+    return [];
+  }
+}
+
+export async function markLetterAsNotified(letterId) {
+  try {
+    await pool.query(
+      `UPDATE future_letters SET is_notified = TRUE WHERE id = $1`,
+      [letterId]
+    );
+    return true;
+  } catch (err) {
+    console.error('Failed to mark letter as notified:', err);
+    return false;
+  }
+}
+
+export async function getLetterById(letterId, userId) {
+  try {
+    const res = await pool.query(
+      `SELECT *, (unlock_date <= CURRENT_TIMESTAMP) as is_unlocked FROM future_letters WHERE id = $1`,
+      [letterId]
+    );
+    if (res.rows.length === 0) return null;
+
+    const letter = res.rows[0];
+
+    if (letter.sender_id === userId) {
+      return letter;
+    }
+
+    if (letter.recipient_id === userId) {
+      if (!letter.unlock_date || new Date(letter.unlock_date) > new Date()) {
+        return null; // Recipient cannot read if still locked!
+      }
+      return letter;
+    }
+
+    return null;
+  } catch (err) {
+    console.error('Failed to get letter by ID:', err);
+    return null;
+  }
+}
+
 export default {
   addMusicHistory,
   getMusicHistory,
@@ -494,5 +613,11 @@ export default {
   updatePlaylistSnapshotResumeIndex,
   getRecentPlaylistSnapshots,
   getPlaylistSnapshot,
-  getPlaylistSnapshotSongs
+  getPlaylistSnapshotSongs,
+  createFutureLetter,
+  getInboxLetters,
+  getOutboxLetters,
+  getUnnotifiedUnlockedLetters,
+  markLetterAsNotified,
+  getLetterById
 };

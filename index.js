@@ -50,6 +50,8 @@ import { handleDiaryButtons, handleDiaryModalSubmit } from './interactions/diary
 import { handleQueuePromote, handleQueueRefresh } from './interactions/queueSelect.js';
 import { handleHelpSelect } from './commands/help.js';
 import { handleLyricsButtons } from './interactions/lyricsSelect.js';
+import { handleLetterModalSubmit, handleLetterReadSelect } from './interactions/lettersSelect.js';
+import { getUnnotifiedUnlockedLetters, markLetterAsNotified } from './database.js';
 
 // Setup client intents
 const client = new Client({
@@ -96,6 +98,9 @@ client.once('ready', async () => {
     activities: [{ name: 'nhạc tình yêu cùng bạn 💕', type: ActivityType.Playing }],
     status: 'online'
   });
+
+  // Start checking for unlocked letters
+  startLetterNotifierJob(client);
 });
 
 // Interaction handler event
@@ -127,6 +132,8 @@ client.on('interactionCreate', async interaction => {
         await handleQueueRefresh(interaction);
       } else if (customId.startsWith('lyrics:')) {
         await handleLyricsButtons(interaction);
+      } else if (customId === 'letter_back_to_mailbox') {
+        await handleLetterReadSelect(interaction);
       }
       return;
     }
@@ -147,6 +154,8 @@ client.on('interactionCreate', async interaction => {
         await handleQueuePromote(interaction);
       } else if (customId === 'help_category') {
         await handleHelpSelect(interaction);
+      } else if (customId === 'letter_read_select') {
+        await handleLetterReadSelect(interaction);
       }
       return;
     }
@@ -157,6 +166,8 @@ client.on('interactionCreate', async interaction => {
       
       if (customId === 'diary_write_modal') {
         await handleDiaryModalSubmit(interaction);
+      } else if (customId.startsWith('letter_write_modal:')) {
+        await handleLetterModalSubmit(interaction);
       }
       return;
     }
@@ -292,3 +303,46 @@ http.createServer((req, res) => {
 }).listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 Keep-alive HTTP server đang chạy trên port ${PORT}`);
 });
+
+// --- Future Letters Notifier Job ---
+
+function startLetterNotifierJob(client) {
+  // Check once 15 seconds after startup
+  setTimeout(() => checkUnlockedLetters(client), 15000);
+
+  // Then check every 30 minutes
+  setInterval(() => checkUnlockedLetters(client), 30 * 60 * 1000);
+}
+
+async function checkUnlockedLetters(client) {
+  console.log('[Notifier] Checking for newly unlocked future letters...');
+  try {
+    const unlockedLetters = await getUnnotifiedUnlockedLetters();
+    if (unlockedLetters.length === 0) {
+      console.log('[Notifier] No newly unlocked letters.');
+      return;
+    }
+
+    console.log(`[Notifier] Found ${unlockedLetters.length} newly unlocked letters! Sending notifications...`);
+    
+    for (const letter of unlockedLetters) {
+      try {
+        const channel = await client.channels.fetch(letter.channel_id);
+        if (channel && channel.isTextBased()) {
+          await channel.send({
+            content: `🔔 **Tin nhắn từ quá khứ!** ✉️\nMột bức thư tình ngọt ngào của **<@${letter.sender_id}>** gửi cho **<@${letter.recipient_id}>** đã được mở khóa! hai bạn hãy gõ lệnh \`/letters\` để mở hòm thư và đọc thư nhé! 💕`
+          });
+          // Mark as notified in database
+          await markLetterAsNotified(letter.id);
+          console.log(`[Notifier] Notification sent successfully for letter ID: ${letter.id}`);
+        } else {
+          console.warn(`[Notifier] Channel ${letter.channel_id} not found or not text-based.`);
+        }
+      } catch (err) {
+        console.error(`[Notifier] Failed to send notification for letter ID: ${letter.id}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error('[Notifier] Failed to process unlocked letters job:', err);
+  }
+}
