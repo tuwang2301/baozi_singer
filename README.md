@@ -1,4 +1,4 @@
-# ldr-space-bot
+# Baozi-singer-bot
 
 ## Overview
 This is a Discord bot designed for long-distance relationship couples. It provides features for audio streaming, shared journals, countdowns, statistics tracking, and interactive letters.
